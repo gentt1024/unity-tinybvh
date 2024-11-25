@@ -18,11 +18,9 @@ void RayGeneration(uint3 id : SV_DispatchThreadID)
 
     float3 origin = mul(CamToWorld, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
 
-    // Invert the perspective projection of the view-space position
+    // Compute world space direction
     float2 uv = float2(pixelCoords.xy / float2(OutputWidth, OutputHeight) * 2.0f - 1.0f);
     float3 direction = mul(CamInvProj, float4(uv, 0.0f, 1.0f)).xyz;
-
-    // Transform the direction from camera to world space
     direction = mul(CamToWorld, float4(direction, 0.0f)).xyz;
     direction = normalize(direction);
     

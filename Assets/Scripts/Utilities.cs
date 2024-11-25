@@ -20,6 +20,7 @@ public static class Utilities
         public uint steps;
     };
 
+    // Finds the offset of an attribute as well as the vertex stride
     public static void FindVertexAttribute(Mesh mesh, VertexAttribute targetAttribute, out int vertexStride, out int attributeOffset)
     {
         VertexAttributeDescriptor[] vertexAttributes = mesh.GetVertexAttributes();
@@ -59,6 +60,7 @@ public static class Utilities
         }
     }
 
+    // Returns the total number of triangles in a given mesh.
     public static int GetTriangleCount(Mesh mesh)
     {
         int result = 0;
@@ -69,9 +71,9 @@ public static class Utilities
         return result;
     }
 
+    // Ensures the buffer is created and matches the requested count and stride.
     public static void PrepareBuffer(ref ComputeBuffer buffer, int count, int stride)
     {
-        // Check if the buffer matches the requested count and stride
         if (buffer != null && (buffer.count != count || buffer.stride != stride))
         {
             buffer.Release();
@@ -84,6 +86,7 @@ public static class Utilities
         }
     }
 
+    // Ensures the buffer is render texture and matches the requested width, height, and format.
     public static void PrepareRenderTexture(ref RenderTexture texture, int width, int height, RenderTextureFormat format)
     {
         // Check if the texture matches the requested dimensions and format

@@ -146,15 +146,15 @@ RayHit CastRayCWBVH(const Ray ray)
     float3 invDir = rcp(ray.direction.xyz);
     uint octinv4 = (7 - ((ray.direction.x < 0 ? 4 : 0) | (ray.direction.y < 0 ? 2 : 0) | (ray.direction.z < 0 ? 1 : 0))) * 0x1010101;
     
-	uint2 stack[STACK_SIZE];
+    uint2 stack[STACK_SIZE];
     uint stackPtr = 0;
     uint2 nodeGroup = uint2(0, 0x80000000);
     uint2 triGroup = uint2(0, 0);
     
     while (true)
-	{
+    {
         if (nodeGroup.y > 0x00FFFFFF)
-		{
+        {
             uint mask = nodeGroup.y;
             uint childBitIndex = firstbithigh(mask);
             uint childNodeBaseIndex = nodeGroup.x;
@@ -178,7 +178,7 @@ RayHit CastRayCWBVH(const Ray ray)
             triGroup.x = asuint(node.n1.y);
             triGroup.y = hitmask & 0x00FFFFFF;
             hit.steps++;
-		}
+        }
         else
         {
             triGroup = nodeGroup;
@@ -187,30 +187,30 @@ RayHit CastRayCWBVH(const Ray ray)
         
         // Process all triangles in the current group
         while (triGroup.y != 0)
-		{
+        {
             int triangleIndex = firstbithigh(triGroup.y);
             int triAddr = triGroup.x + (triangleIndex * 3);
             
             // Check intersection and update hit if its closer
             IntersectTriangle(triAddr, ray, hit);
             
-			triGroup.y -= 1 << triangleIndex;
-		}
+            triGroup.y -= 1 << triangleIndex;
+        }
         
         if (nodeGroup.y <= 0x00FFFFFF)
-		{
-			if (stackPtr > 0) 
+        {
+            if (stackPtr > 0) 
             { 
                 // Pop the stack
                 nodeGroup = stack[--stackPtr];
             }
-			else
-			{
+            else
+            {
                 // Traversal complete, exit loop
-				break;
-			}
-		}
-	}
+                break;
+            }
+        }
+    }
     
     return hit;
 }

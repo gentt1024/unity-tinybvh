@@ -142,7 +142,7 @@ public class BVHManager : MonoBehaviour
 
         Debug.Log("Meshes processed. Total triangles: " + totalTriangleCount);
 
-        // Initiate async readback of vertex buffer to pass to tiny_bvh to build
+        // Initiate async readback of vertex buffer to pass to tinybvh to build
         readbackStartTime = DateTime.UtcNow;
         AsyncGPUReadback.RequestIntoNativeArray(ref vertexPositionBufferCPU, vertexPositionBufferGPU, OnCompleteReadback);
     }

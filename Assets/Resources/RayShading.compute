@@ -40,6 +40,7 @@ void RayShading(uint3 id : SV_DispatchThreadID)
     #elif OUTPUT_NORMALS
         TriangleAttributes triAttr = TriangleAttributesBuffer[hit.triIndex];
         float3 normal = InterpolateAttribute(hit.barycentric, triAttr.normal0, triAttr.normal1, triAttr.normal2);
+        normal = normalize(normal);
         Output[pixelCoords] = float4(normal.xyz, 1.0f);
     #elif OUTPUT_UVS
         TriangleAttributes triAttr = TriangleAttributesBuffer[hit.triIndex];
