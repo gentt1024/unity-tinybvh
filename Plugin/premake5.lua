@@ -29,6 +29,7 @@ project "unity-tinybvh-plugin"
     rtti "Off"
     warnings "Default"
     characterset "ASCII"
+    vectorextensions "AVX"
     location ("build/" .. _ACTION)
 
     defines {
