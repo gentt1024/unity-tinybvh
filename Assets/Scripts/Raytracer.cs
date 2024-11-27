@@ -40,7 +40,7 @@ public class Raytracer : MonoBehaviour
     private LocalKeyword outputUVs;
 
     // Sun for NDotL
-    private Vector3 lightDirection = new Vector3(1.0f, -1.0f, 1.0f).normalized;
+    private Vector3 lightDirection = new Vector3(1.0f, 1.0f, 1.0f).normalized;
     private Vector4 lightColor = new Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 
     // Struct sizes in bytes
