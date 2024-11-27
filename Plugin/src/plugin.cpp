@@ -47,11 +47,6 @@ int BuildBVH(tinybvh::bvhvec4* vertices, int triangleCount, bool buildCWBVH)
 
     if (buildCWBVH)
     {
-        // HACK: cwbvh building currently can end up with > 3 triangles in a node
-        // which breaks traversal. We use SplitLeafs to make it one tri per node.
-        bvh->Convert(tinybvh::BVH::WALD_32BYTE, tinybvh::BVH::VERBOSE);
-        bvh->SplitLeafs();
-        bvh->Convert(tinybvh::BVH::VERBOSE, tinybvh::BVH::WALD_32BYTE);
         bvh->Convert(tinybvh::BVH::WALD_32BYTE, tinybvh::BVH::BASIC_BVH8);
         bvh->Convert(tinybvh::BVH::BASIC_BVH8, tinybvh::BVH::CWBVH);
     }

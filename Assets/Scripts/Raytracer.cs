@@ -1,16 +1,13 @@
 using System.Collections.Generic;
-using System.IO;
-using Unity.Collections;
-using UnityEditor.AssetImporters;
 using UnityEngine;
 using UnityEngine.Rendering;
-using static UnityEditor.PlayerSettings;
 
 [RequireComponent(typeof(Camera))]
 public class Raytracer : MonoBehaviour
 {
     public enum DisplayMode
     {
+        NDotL,
         RayDistance,
         BVHSteps,
         Barycentrics,
@@ -18,10 +15,10 @@ public class Raytracer : MonoBehaviour
         UV,
     }
 
-    public DisplayMode display = DisplayMode.RayDistance;
+    public DisplayMode display = DisplayMode.NDotL;
 
     private Camera sourceCamera;
-    private BVHManager bvhManager;
+    private BVHScene bvhScene;
     private CommandBuffer cmd;
 
     private ComputeShader rayGenerationShader;
@@ -35,10 +32,16 @@ public class Raytracer : MonoBehaviour
     private ComputeBuffer rayBuffer;
     private ComputeBuffer rayHitBuffer;
 
+    // Shading options
+    private LocalKeyword outputNDotL;
     private LocalKeyword outputBVHSteps;
     private LocalKeyword outputBarycentrics;
     private LocalKeyword outputNormals;
     private LocalKeyword outputUVs;
+
+    // Sun for NDotL
+    private Vector3 lightDirection = new Vector3(1.0f, -1.0f, 1.0f).normalized;
+    private Vector4 lightColor = new Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 
     // Struct sizes in bytes
     private const int RayStructSize = 24;
@@ -47,10 +50,10 @@ public class Raytracer : MonoBehaviour
     void Start()
     {
         sourceCamera = GetComponent<Camera>();
-        bvhManager = FindObjectOfType<BVHManager>();
+        bvhScene = FindObjectOfType<BVHScene>();
         cmd = new CommandBuffer();
 
-        if (bvhManager == null)
+        if (bvhScene == null)
         {
             Debug.LogError("BVHManager was not found in the scene!");
         }
@@ -59,10 +62,23 @@ public class Raytracer : MonoBehaviour
         rayIntersectionShader = Resources.Load<ComputeShader>("RayIntersection");
         rayShadingShader      = Resources.Load<ComputeShader>("RayShading");
 
+        outputNDotL         = rayShadingShader.keywordSpace.FindKeyword("OUTPUT_NDOTL");
         outputBVHSteps      = rayShadingShader.keywordSpace.FindKeyword("OUTPUT_BVH_STEPS");
         outputBarycentrics  = rayShadingShader.keywordSpace.FindKeyword("OUTPUT_BARYCENTRICS");
         outputNormals       = rayShadingShader.keywordSpace.FindKeyword("OUTPUT_NORMALS");
         outputUVs           = rayShadingShader.keywordSpace.FindKeyword("OUTPUT_UVS");
+
+        // Find the directional light in the scene for NDotL
+        Light[] lights = FindObjectsOfType<Light>();
+        foreach (Light light in lights)
+        {
+            if (light.type == LightType.Directional)
+            {
+                lightDirection = -light.transform.forward;
+                lightColor = light.color * light.intensity;
+                break;
+            }
+        }
     }
 
     void OnDestroy()
@@ -75,16 +91,9 @@ public class Raytracer : MonoBehaviour
 
     private void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
-        if (bvhManager == null || !bvhManager.CanRender())
+        if (bvhScene == null || !bvhScene.CanRender())
         {
-            if (outputRT != null)
-            {
-                Graphics.Blit(outputRT, destination);
-            } 
-            else
-            {
-                Graphics.Blit(source, destination);
-            }
+            Graphics.Blit(source, destination);
             return;
         }
 
@@ -115,7 +124,7 @@ public class Raytracer : MonoBehaviour
         cmd.BeginSample("Ray Intersection");
         {
             PrepareShader(cmd, rayIntersectionShader, 0);
-            bvhManager.PrepareShader(cmd, rayIntersectionShader, 0);
+            bvhScene.PrepareShader(cmd, rayIntersectionShader, 0);
 
             cmd.DispatchCompute(rayIntersectionShader, 0, dispatchX, 1, 1);
 
@@ -126,13 +135,14 @@ public class Raytracer : MonoBehaviour
         cmd.BeginSample("Ray Shading");
         {
             PrepareShader(cmd, rayShadingShader, 0);
-            bvhManager.PrepareShader(cmd, rayShadingShader, 0);
+            bvhScene.PrepareShader(cmd, rayShadingShader, 0);
 
             // Set shader keywords based on which display mode is enabled
-            rayShadingShader.SetKeyword(outputBVHSteps, display == DisplayMode.BVHSteps);
+            rayShadingShader.SetKeyword(outputNDotL,        display == DisplayMode.NDotL);
+            rayShadingShader.SetKeyword(outputBVHSteps,     display == DisplayMode.BVHSteps);
             rayShadingShader.SetKeyword(outputBarycentrics, display == DisplayMode.Barycentrics);
-            rayShadingShader.SetKeyword(outputNormals, display == DisplayMode.Normals);
-            rayShadingShader.SetKeyword(outputUVs, display == DisplayMode.UV);
+            rayShadingShader.SetKeyword(outputNormals,      display == DisplayMode.Normals);
+            rayShadingShader.SetKeyword(outputUVs,          display == DisplayMode.UV);
 
             cmd.DispatchCompute(rayShadingShader, 0, dispatchX, 1, 1);
         }
@@ -147,6 +157,8 @@ public class Raytracer : MonoBehaviour
 
     private void PrepareShader(CommandBuffer cmd, ComputeShader shader, int kernelIndex)
     {
+        cmd.SetComputeVectorParam(shader, "LightDirection", lightDirection);
+        cmd.SetComputeVectorParam(shader, "LightColor", lightColor);
         cmd.SetComputeFloatParam(shader, "FarPlane", sourceCamera.farClipPlane);
         cmd.SetComputeIntParam(shader, "OutputWidth", outputWidth);
         cmd.SetComputeIntParam(shader, "OutputHeight", outputHeight);
@@ -164,7 +176,7 @@ public class Raytracer : MonoBehaviour
         Vector3 pos = sourceCamera.transform.position;
         Vector3 dir = sourceCamera.transform.forward;
 
-        tinybvh.BVH bvh = bvhManager.GetBVH();
+        tinybvh.BVH bvh = bvhScene.GetBVH();
         tinybvh.BVH.Intersection intersection = bvh.Intersect(pos, dir, false);
 
         Debug.Log("Ray Hit Distance: " + intersection.t + ", Triangle Index: " + intersection.prim);
@@ -221,7 +233,7 @@ public class Raytracer : MonoBehaviour
         Matrix4x4 CamInvProj = sourceCamera.projectionMatrix.inverse;
         Matrix4x4 CamToWorld = sourceCamera.cameraToWorldMatrix;
 
-        tinybvh.BVH bvh = bvhManager.GetBVH();
+        tinybvh.BVH bvh = bvhScene.GetBVH();
         
         for (int y = 0; y < outputHeight; y++)
         {

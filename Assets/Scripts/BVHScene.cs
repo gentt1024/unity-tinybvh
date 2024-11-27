@@ -5,29 +5,27 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-public class BVHManager : MonoBehaviour
+public class BVHScene : MonoBehaviour
 {
-    public MeshRenderer[] meshRenderers;
-
-    private tinybvh.BVH sceneBVH;
-    private bool buildingBVH = false;
-
+    private MeshRenderer[] meshRenderers;
     private ComputeShader meshProcessingShader;
     private LocalKeyword has32BitIndicesKeyword;
     private LocalKeyword hasNormalsKeyword;
     private LocalKeyword hasUVsKeyword;
 
+    private int totalVertexCount = 0;
+    private int totalTriangleCount = 0;
+    private DateTime readbackStartTime;
+
     public ComputeBuffer vertexPositionBufferGPU;
     public NativeArray<Vector4> vertexPositionBufferCPU;
     private ComputeBuffer triangleAttributesBuffer;
 
-    // CWBVH data from tinybvh
+    // BVH data
+    private tinybvh.BVH sceneBVH;
+    private bool buildingBVH = false;
     private ComputeBuffer bvhNodes;
     private ComputeBuffer bvhTris;
-
-    private int totalVertexCount = 0;
-    private int totalTriangleCount = 0;
-    private DateTime readbackStartTime;
 
     // Struct sizes in bytes
     private const int VertexPositionSize = 16;
@@ -45,11 +43,8 @@ public class BVHManager : MonoBehaviour
         hasNormalsKeyword      = meshProcessingShader.keywordSpace.FindKeyword("HAS_NORMALS");
         hasUVsKeyword          = meshProcessingShader.keywordSpace.FindKeyword("HAS_UVS");
 
-        // If an explicit list of renderers wasn't provided we auto-populate the list
-        if (meshRenderers.Length == 0)
-        {
-            meshRenderers = FindObjectsOfType<MeshRenderer>();
-        }
+        // Populate list of mesh renderers to trace against
+        meshRenderers = FindObjectsOfType<MeshRenderer>();
 
         ProcessMeshes();
     }
@@ -114,9 +109,9 @@ public class BVHManager : MonoBehaviour
 
             // Determine where in the Unity vertex buffer each vertex attribute is
             int vertexStride, positionOffset, normalOffset, uvOffset;
-            Utilities.FindVertexAttribute(mesh, VertexAttribute.Position, out vertexStride, out positionOffset);
-            Utilities.FindVertexAttribute(mesh, VertexAttribute.Normal, out vertexStride, out normalOffset);
-            Utilities.FindVertexAttribute(mesh, VertexAttribute.TexCoord0, out vertexStride, out uvOffset);
+            Utilities.FindVertexAttribute(mesh, VertexAttribute.Position, out positionOffset, out vertexStride);
+            Utilities.FindVertexAttribute(mesh, VertexAttribute.Normal, out normalOffset, out vertexStride);
+            Utilities.FindVertexAttribute(mesh, VertexAttribute.TexCoord0, out uvOffset, out vertexStride);
 
             meshProcessingShader.SetBuffer(0, "VertexBuffer", vertexBuffer);
             meshProcessingShader.SetBuffer(0, "IndexBuffer", indexBuffer);

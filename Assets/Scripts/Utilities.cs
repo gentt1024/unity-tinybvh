@@ -20,8 +20,8 @@ public static class Utilities
         public uint steps;
     };
 
-    // Finds the offset of an attribute as well as the vertex stride
-    public static void FindVertexAttribute(Mesh mesh, VertexAttribute targetAttribute, out int vertexStride, out int attributeOffset)
+    // Finds the offset of an attribute as well as the vertex stride.
+    public static void FindVertexAttribute(Mesh mesh, VertexAttribute targetAttribute, out int attributeOffset, out int vertexStride)
     {
         VertexAttributeDescriptor[] vertexAttributes = mesh.GetVertexAttributes();
         attributeOffset = 0;
