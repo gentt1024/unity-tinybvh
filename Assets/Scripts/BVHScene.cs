@@ -153,7 +153,15 @@ public class BVHScene : MonoBehaviour
         TimeSpan readbackTime = DateTime.UtcNow - readbackStartTime;
         Debug.Log("GPU readback took: " + readbackTime.TotalMilliseconds + "ms");
 
-        var dataPointer = (IntPtr)NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(vertexPositionBufferCPU);
+        // In the editor if we exit play mode before the bvh is finished building the memory will be freed
+        // and tinybvh will illegal access and crash everything. 
+        #if UNITY_EDITOR
+            NativeArray<Vector4> persistentBuffer = new NativeArray<Vector4>(vertexPositionBufferCPU.Length, Allocator.Persistent);
+            persistentBuffer.CopyFrom(vertexPositionBufferCPU);
+            var dataPointer = (IntPtr)NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(persistentBuffer);
+        #else
+            var dataPointer = (IntPtr)NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(vertexPositionBufferCPU);
+        #endif
         
         // Build BVH in thread.
         Thread thread = new Thread(() =>
@@ -163,6 +171,10 @@ public class BVHScene : MonoBehaviour
             TimeSpan bvhTime = DateTime.UtcNow - bvhStartTime;
 
             Debug.Log("BVH built in: " + bvhTime.TotalMilliseconds + "ms");
+
+            #if UNITY_EDITOR
+                persistentBuffer.Dispose();
+            #endif
         });
 
         buildingBVH = true;
