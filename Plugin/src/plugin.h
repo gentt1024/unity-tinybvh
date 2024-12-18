@@ -1,7 +1,5 @@
 #pragma once
 
-#include "tinybvh/tiny_bvh.h"
-
 #ifdef _WIN32
 #define PLUGIN_FN __declspec(dllexport)
 #else
