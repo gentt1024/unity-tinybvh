@@ -15,6 +15,13 @@ struct RayHit
     uint steps;
 };
 
+struct RayHit2
+{
+    float t;
+    float3 hitNormal;
+    uint triIndex;
+};
+
 // NOTE: These could be quantized and packed better
 struct TriangleAttributes
 {
@@ -30,6 +37,7 @@ struct TriangleAttributes
 uint TotalRays;
 RWStructuredBuffer<Ray> RayBuffer;
 RWStructuredBuffer<RayHit> RayHitBuffer;
+RWStructuredBuffer<RayHit2> RayHitBuffer2;
 RWStructuredBuffer<TriangleAttributes> TriangleAttributesBuffer;
 
 float FarPlane;

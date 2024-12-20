@@ -1,4 +1,5 @@
 #pragma kernel RayIntersection
+#pragma kernel RayIntersection2
 
 #include "Common.cginc"
 
@@ -138,6 +139,48 @@ void IntersectTriangle(int triAddr, const Ray ray, inout RayHit hit)
     }
 }
 
+float3 InterpolateAttribute(float2 barycentric, float3 attr0, float3 attr1, float3 attr2)
+{
+    return attr0 * (1.0f - barycentric.x - barycentric.y) + attr1 * barycentric.x + attr2 * barycentric.y;
+}
+
+void IntersectTriangle2(int triAddr, const Ray ray, inout RayHit2 hit)
+{
+    float3 v0 = BVHTris[triAddr].xyz;
+    float3 e1 = BVHTris[triAddr + 1].xyz - v0;
+    float3 e2 = BVHTris[triAddr + 2].xyz - v0;
+    
+    float3 r = cross(ray.direction.xyz, e2);
+    float a = dot(e1, r);
+            
+    if (abs(a) > 0.0000001f)
+    {
+        float f = 1.0f / a;
+        float3 s = ray.origin.xyz - v0;
+        float u = f * dot(s, r);
+        
+        if (u >= 0.0f && u <= 1.0f)
+        {
+            float3 q = cross(s, e1);
+            float v = f * dot(ray.direction.xyz, q);
+            
+            if (v >= 0.0f && u + v <= 1.0f)
+            {
+                float d = f * dot(e2, q);
+                
+                if (d > 0.0f && d < hit.t)
+                {
+                    hit.t = d;
+                    float2 barycentric = float2(u, v);
+                    hit.triIndex = asuint(BVHTris[triAddr].w);
+                    TriangleAttributes triAttr = TriangleAttributesBuffer[hit.triIndex];
+                    hit.hitNormal = normalize(InterpolateAttribute(barycentric, triAttr.normal0, triAttr.normal1, triAttr.normal2));
+                }
+            }
+        }
+    }
+}
+
 RayHit CastRayCWBVH(const Ray ray)
 {
     RayHit hit = (RayHit) 0;
@@ -215,6 +258,82 @@ RayHit CastRayCWBVH(const Ray ray)
     return hit;
 }
 
+RayHit2 CastRayCWBVH2(const Ray ray)
+{
+    RayHit2 hit = (RayHit2) 0;
+    hit.t = FarPlane;
+
+    float3 invDir = rcp(ray.direction.xyz);
+    uint octinv4 = (7 - ((ray.direction.x < 0 ? 4 : 0) | (ray.direction.y < 0 ? 2 : 0) | (ray.direction.z < 0 ? 1 : 0))) * 0x1010101;
+    
+    uint2 stack[STACK_SIZE];
+    uint stackPtr = 0;
+    uint2 nodeGroup = uint2(0, 0x80000000);
+    uint2 triGroup = uint2(0, 0);
+    
+    while (true)
+    {
+        if (nodeGroup.y > 0x00FFFFFF)
+        {
+            uint mask = nodeGroup.y;
+            uint childBitIndex = firstbithigh(mask);
+            uint childNodeBaseIndex = nodeGroup.x;
+            
+            nodeGroup.y &= ~(1 << childBitIndex);
+            if (nodeGroup.y > 0x00FFFFFF) 
+            { 
+                // Push onto stack
+                stack[stackPtr++] = nodeGroup;
+            }
+            
+            uint slotIndex = (childBitIndex - 24) ^ (octinv4 & 255);
+            uint relativeIndex = countbits(mask & ~(0xFFFFFFFF << slotIndex));
+            uint childNodeIndex = childNodeBaseIndex + relativeIndex;
+
+            BVHNode node = BVHNodes[childNodeIndex];
+            uint hitmask = IntersectCWBVHNode(ray.origin, invDir, octinv4, hit.t, node);
+
+            nodeGroup.x = asuint(node.n1.x);
+            nodeGroup.y = (hitmask & 0xFF000000) | (asuint(node.n0.w) >> 24);
+            triGroup.x = asuint(node.n1.y);
+            triGroup.y = hitmask & 0x00FFFFFF;
+        }
+        else
+        {
+            triGroup = nodeGroup;
+            nodeGroup = uint2(0, 0);
+        }
+        
+        // Process all triangles in the current group
+        while (triGroup.y != 0)
+        {
+            int triangleIndex = firstbithigh(triGroup.y);
+            int triAddr = triGroup.x + (triangleIndex * 3);
+            
+            // Check intersection and update hit if its closer
+            IntersectTriangle2(triAddr, ray, hit);
+            
+            triGroup.y -= 1 << triangleIndex;
+        }
+        
+        if (nodeGroup.y <= 0x00FFFFFF)
+        {
+            if (stackPtr > 0) 
+            { 
+                // Pop the stack
+                nodeGroup = stack[--stackPtr];
+            }
+            else
+            {
+                // Traversal complete, exit loop
+                break;
+            }
+        }
+    }
+    
+    return hit;
+}
+
 [numthreads(64, 1, 1)]
 void RayIntersection(uint3 id : SV_DispatchThreadID)
 {
@@ -228,4 +347,19 @@ void RayIntersection(uint3 id : SV_DispatchThreadID)
     Ray ray = RayBuffer[rayIndex];
     RayHit hit = CastRayCWBVH(ray);
     RayHitBuffer[rayIndex] = hit;
+}
+
+[numthreads(64, 1, 1)]
+void RayIntersection2(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= TotalRays)
+    {
+        return;
+    }
+
+    const uint rayIndex = id.x;
+    
+    Ray ray = RayBuffer[rayIndex];
+    RayHit2 hit = CastRayCWBVH2(ray);
+    RayHitBuffer2[rayIndex] = hit;
 }
