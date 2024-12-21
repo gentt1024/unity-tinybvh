@@ -46,7 +46,7 @@ namespace tinybvh
 
         public bool IsReady => _hasBvhBuilt && _hasVertexBufferCPUReady && _hasTriangleBufferCPUReady;
 
-        public BVHMeshCompound(IList<MeshFilter> mfs, Matrix4x4 transform)
+        public BVHMeshCompound(IList<(Mesh mesh, Matrix4x4 matrix)> mfs)
         {
             // Load compute shader
             _meshProcessingShader   = Resources.Load<ComputeShader>("MeshProcessing");
@@ -54,7 +54,7 @@ namespace tinybvh
             _hasNormalsKeyword      = _meshProcessingShader.keywordSpace.FindKeyword("HAS_NORMALS");
             _hasUVsKeyword          = _meshProcessingShader.keywordSpace.FindKeyword("HAS_UVS");
 
-            ProcessMeshes(mfs, transform);
+            ProcessMeshes(mfs);
         }
         
         public void Dispose()
@@ -77,13 +77,13 @@ namespace tinybvh
             _bvh.Destroy();
         }
 
-        private void ProcessMeshes(IList<MeshFilter> mfs, Matrix4x4 transform)
+        private void ProcessMeshes(IList<(Mesh mesh, Matrix4x4 matrix)> mfs)
         {
             _totalVertexCount = 0;
             _totalTriangleCount = 0;
 
             // Gather info on the mesh we'll be using
-            foreach (var mesh in mfs.Select(mf => mf.sharedMesh).Where(mesh => mesh != null))
+            foreach (var mesh in mfs.Select(mf => mf.mesh))
             {
                 _totalVertexCount += Utilities.GetTriangleCount(mesh) * 3;
             }
@@ -98,7 +98,7 @@ namespace tinybvh
             // Note: this avoids the need for every mesh to have cpu read/write access.
             foreach (var mf in mfs)
             {
-                Mesh mesh = mf.sharedMesh;
+                Mesh mesh = mf.mesh;
                 if (mesh == null)
                 {
                     continue;
@@ -128,7 +128,7 @@ namespace tinybvh
                 _meshProcessingShader.SetInt("UVOffset", uvOffset);
                 _meshProcessingShader.SetInt("TriangleCount", triangleCount);
                 _meshProcessingShader.SetInt("OutputTriangleStart", _totalTriangleCount);
-                _meshProcessingShader.SetMatrix("LocalToWorld", transform * mf.transform.localToWorldMatrix);
+                _meshProcessingShader.SetMatrix("LocalToWorld", mf.matrix);
 
                 // Set keywords based on format/attributes of this mesh
                 _meshProcessingShader.SetKeyword(_has32BitIndicesKeyword, (mesh.indexFormat == IndexFormat.UInt32));

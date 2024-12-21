@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -13,7 +14,9 @@ namespace tinybvh
 
         private void Start()
         {
-            _bvhProvider = new BVHMeshCompound(gameObject.GetComponentsInChildren<MeshFilter>(), Matrix4x4.identity);
+            _bvhProvider = new BVHMeshCompound(
+                gameObject.GetComponentsInChildren<MeshFilter>()
+                    .Select(mf => (mf.sharedMesh, mf.transform.localToWorldMatrix)).ToList());
         }
 
         private void OnDestroy()
